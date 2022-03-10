@@ -16,7 +16,7 @@ const [, , repoOrg, repoName] = pattern.exec(payload.repository.url);
 info(`URL: ${payload.repository.url}`);
 info(`Org: ${repoOrg}`);
 info(`Repo: ${repoName}`);
-const ref = context.ref;
+const ref = process.env.GHA_Branch || context.ref;
 
 const getBranch = () => {
   if (ref.startsWith("refs/heads/")) {
@@ -52,7 +52,7 @@ const body = {
 };
 
 const tag = getTag();
-const branch = process.env.GHA_Branch || getBranch();
+const branch = getBranch();
 
 if (tag) {
   Object.assign(body, { tag });

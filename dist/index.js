@@ -12739,7 +12739,7 @@ const [, , repoOrg, repoName] = pattern.exec(payload.repository.url);
 (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.info)(`URL: ${payload.repository.url}`);
 (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.info)(`Org: ${repoOrg}`);
 (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.info)(`Repo: ${repoName}`);
-const ref = _actions_github__WEBPACK_IMPORTED_MODULE_1__.context.ref;
+const ref = process.env.GHA_Branch || _actions_github__WEBPACK_IMPORTED_MODULE_1__.context.ref;
 
 const getBranch = () => {
   if (ref.startsWith("refs/heads/")) {
@@ -12775,7 +12775,7 @@ const body = {
 };
 
 const tag = getTag();
-const branch = process.env.GHA_Branch || getBranch();
+const branch = getBranch();
 
 if (tag) {
   Object.assign(body, { tag });
