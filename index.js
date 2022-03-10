@@ -52,7 +52,7 @@ const body = {
 };
 
 const tag = getTag();
-const branch = getBranch();
+const branch = process.env.GHA_Branch || getBranch();
 
 if (tag) {
   Object.assign(body, { tag });
