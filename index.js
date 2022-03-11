@@ -12,13 +12,15 @@ import axiosRetry from "axios-retry";
 
 axiosRetry(axios, {
   retries: 5,
-  retryDelay: 5000,
+  retryDelay: () => 5000,
   retryCondition: (error) => {
     return (
-      error.code !== 'ECONNABORTED' &&
-      (!error.response || error.response.status == 404 || (error.response.status >= 500 && error.response.status <= 599))
+      error.code !== "ECONNABORTED" &&
+      (!error.response ||
+        error.response.status == 404 ||
+        (error.response.status >= 500 && error.response.status <= 599))
     );
-  }
+  },
 });
 
 startGroup("Preparing CircleCI Pipeline Trigger");
