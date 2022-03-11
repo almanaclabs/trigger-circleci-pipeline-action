@@ -13059,7 +13059,7 @@ axiosRetry.isRetryableError = isRetryableError;
 
 axiosRetry((axios_default()), {
   retries: 10,
-  retryDelay: () => 10000,
+  retryDelay: () => 30000,
   retryCondition: (error) => {
     return (
       error.code !== "ECONNABORTED" &&

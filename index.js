@@ -12,7 +12,7 @@ import axiosRetry from "axios-retry";
 
 axiosRetry(axios, {
   retries: 10,
-  retryDelay: () => 10000,
+  retryDelay: () => 30000,
   retryCondition: (error) => {
     return (
       error.code !== "ECONNABORTED" &&
