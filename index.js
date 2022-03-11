@@ -11,7 +11,7 @@ import axios from "axios";
 import axiosRetry from "axios-retry";
 
 axiosRetry(axios, {
-  retries: 5,
+  retries: 10,
   retryDelay: () => 5000,
   retryCondition: (error) => {
     return (

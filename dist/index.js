@@ -13058,7 +13058,7 @@ axiosRetry.isRetryableError = isRetryableError;
 
 
 axiosRetry((axios_default()), {
-  retries: 5,
+  retries: 10,
   retryDelay: () => 5000,
   retryCondition: (error) => {
     return (
