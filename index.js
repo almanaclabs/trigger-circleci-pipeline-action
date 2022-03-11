@@ -8,9 +8,18 @@ import {
 } from "@actions/core";
 import { context } from "@actions/github";
 import axios from "axios";
-import axiosRetry from 'axios-retry';
+import axiosRetry from "axios-retry";
 
-axiosRetry(axios, { retries: 3 });
+axiosRetry(axios, {
+  retries: 5,
+  retryDelay: 5000,
+  retryCondition: (error) => {
+    return (
+      error.code !== 'ECONNABORTED' &&
+      (!error.response || error.response.status == 404 || (error.response.status >= 500 && error.response.status <= 599))
+    );
+  }
+});
 
 startGroup("Preparing CircleCI Pipeline Trigger");
 const payload = context.payload;
