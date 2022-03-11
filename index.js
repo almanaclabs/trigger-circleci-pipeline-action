@@ -8,6 +8,9 @@ import {
 } from "@actions/core";
 import { context } from "@actions/github";
 import axios from "axios";
+import axiosRetry from 'axios-retry';
+
+axiosRetry(axios, { retries: 3 });
 
 startGroup("Preparing CircleCI Pipeline Trigger");
 const payload = context.payload;

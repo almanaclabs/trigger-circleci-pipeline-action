@@ -7929,6 +7929,53 @@ exports.isPlainObject = isPlainObject;
 
 /***/ }),
 
+/***/ 841:
+/***/ ((module) => {
+
+"use strict";
+
+
+const denyList = new Set([
+	'ENOTFOUND',
+	'ENETUNREACH',
+
+	// SSL errors from https://github.com/nodejs/node/blob/fc8e3e2cdc521978351de257030db0076d79e0ab/src/crypto/crypto_common.cc#L301-L328
+	'UNABLE_TO_GET_ISSUER_CERT',
+	'UNABLE_TO_GET_CRL',
+	'UNABLE_TO_DECRYPT_CERT_SIGNATURE',
+	'UNABLE_TO_DECRYPT_CRL_SIGNATURE',
+	'UNABLE_TO_DECODE_ISSUER_PUBLIC_KEY',
+	'CERT_SIGNATURE_FAILURE',
+	'CRL_SIGNATURE_FAILURE',
+	'CERT_NOT_YET_VALID',
+	'CERT_HAS_EXPIRED',
+	'CRL_NOT_YET_VALID',
+	'CRL_HAS_EXPIRED',
+	'ERROR_IN_CERT_NOT_BEFORE_FIELD',
+	'ERROR_IN_CERT_NOT_AFTER_FIELD',
+	'ERROR_IN_CRL_LAST_UPDATE_FIELD',
+	'ERROR_IN_CRL_NEXT_UPDATE_FIELD',
+	'OUT_OF_MEM',
+	'DEPTH_ZERO_SELF_SIGNED_CERT',
+	'SELF_SIGNED_CERT_IN_CHAIN',
+	'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
+	'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+	'CERT_CHAIN_TOO_LONG',
+	'CERT_REVOKED',
+	'INVALID_CA',
+	'PATH_LENGTH_EXCEEDED',
+	'INVALID_PURPOSE',
+	'CERT_UNTRUSTED',
+	'CERT_REJECTED',
+	'HOSTNAME_MISMATCH'
+]);
+
+// TODO: Use `error?.code` when targeting Node.js 14
+module.exports = error => !denyList.has(error && error.code);
+
+
+/***/ }),
+
 /***/ 900:
 /***/ ((module) => {
 
@@ -12721,25 +12768,305 @@ var __webpack_exports__ = {};
 // This entry need to be wrapped in an IIFE because it need to be in strict mode.
 (() => {
 "use strict";
+// ESM COMPAT FLAG
 __nccwpck_require__.r(__webpack_exports__);
-/* harmony import */ var _actions_core__WEBPACK_IMPORTED_MODULE_0__ = __nccwpck_require__(2186);
-/* harmony import */ var _actions_core__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__nccwpck_require__.n(_actions_core__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var _actions_github__WEBPACK_IMPORTED_MODULE_1__ = __nccwpck_require__(5438);
-/* harmony import */ var _actions_github__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__nccwpck_require__.n(_actions_github__WEBPACK_IMPORTED_MODULE_1__);
-/* harmony import */ var axios__WEBPACK_IMPORTED_MODULE_2__ = __nccwpck_require__(6545);
-/* harmony import */ var axios__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__nccwpck_require__.n(axios__WEBPACK_IMPORTED_MODULE_2__);
+
+// EXTERNAL MODULE: ./node_modules/@actions/core/lib/core.js
+var core = __nccwpck_require__(2186);
+// EXTERNAL MODULE: ./node_modules/@actions/github/lib/github.js
+var github = __nccwpck_require__(5438);
+// EXTERNAL MODULE: ./node_modules/axios/index.js
+var axios = __nccwpck_require__(6545);
+var axios_default = /*#__PURE__*/__nccwpck_require__.n(axios);
+// EXTERNAL MODULE: ./node_modules/is-retry-allowed/index.js
+var is_retry_allowed = __nccwpck_require__(841);
+;// CONCATENATED MODULE: ./node_modules/axios-retry/lib/esm/index.js
+function asyncGeneratorStep(gen, resolve, reject, _next, _throw, key, arg) { try { var info = gen[key](arg); var value = info.value; } catch (error) { reject(error); return; } if (info.done) { resolve(value); } else { Promise.resolve(value).then(_next, _throw); } }
+
+function _asyncToGenerator(fn) { return function () { var self = this, args = arguments; return new Promise(function (resolve, reject) { var gen = fn.apply(self, args); function _next(value) { asyncGeneratorStep(gen, resolve, reject, _next, _throw, "next", value); } function _throw(err) { asyncGeneratorStep(gen, resolve, reject, _next, _throw, "throw", err); } _next(undefined); }); }; }
+
+function ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); if (enumerableOnly) { symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; }); } keys.push.apply(keys, symbols); } return keys; }
+
+function _objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i] != null ? arguments[i] : {}; if (i % 2) { ownKeys(Object(source), true).forEach(function (key) { _defineProperty(target, key, source[key]); }); } else if (Object.getOwnPropertyDescriptors) { Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)); } else { ownKeys(Object(source)).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } } return target; }
+
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+var namespace = 'axios-retry';
+/**
+ * @param  {Error}  error
+ * @return {boolean}
+ */
+
+function isNetworkError(error) {
+  return !error.response && Boolean(error.code) && // Prevents retrying cancelled requests
+  error.code !== 'ECONNABORTED' && // Prevents retrying timed out requests
+  is_retry_allowed(error); // Prevents retrying unsafe errors
+}
+var SAFE_HTTP_METHODS = ['get', 'head', 'options'];
+var IDEMPOTENT_HTTP_METHODS = SAFE_HTTP_METHODS.concat(['put', 'delete']);
+/**
+ * @param  {Error}  error
+ * @return {boolean}
+ */
+
+function isRetryableError(error) {
+  return error.code !== 'ECONNABORTED' && (!error.response || error.response.status >= 500 && error.response.status <= 599);
+}
+/**
+ * @param  {Error}  error
+ * @return {boolean}
+ */
+
+function isSafeRequestError(error) {
+  if (!error.config) {
+    // Cannot determine if the request can be retried
+    return false;
+  }
+
+  return isRetryableError(error) && SAFE_HTTP_METHODS.indexOf(error.config.method) !== -1;
+}
+/**
+ * @param  {Error}  error
+ * @return {boolean}
+ */
+
+function isIdempotentRequestError(error) {
+  if (!error.config) {
+    // Cannot determine if the request can be retried
+    return false;
+  }
+
+  return isRetryableError(error) && IDEMPOTENT_HTTP_METHODS.indexOf(error.config.method) !== -1;
+}
+/**
+ * @param  {Error}  error
+ * @return {boolean | Promise}
+ */
+
+function isNetworkOrIdempotentRequestError(error) {
+  return isNetworkError(error) || isIdempotentRequestError(error);
+}
+/**
+ * @return {number} - delay in milliseconds, always 0
+ */
+
+function noDelay() {
+  return 0;
+}
+/**
+ * @param  {number} [retryNumber=0]
+ * @return {number} - delay in milliseconds
+ */
+
+
+function exponentialDelay() {
+  var retryNumber = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 0;
+  var delay = Math.pow(2, retryNumber) * 100;
+  var randomSum = delay * 0.2 * Math.random(); // 0-20% of the delay
+
+  return delay + randomSum;
+}
+/**
+ * Initializes and returns the retry state for the given request/config
+ * @param  {AxiosRequestConfig} config
+ * @return {Object}
+ */
+
+function getCurrentState(config) {
+  var currentState = config[namespace] || {};
+  currentState.retryCount = currentState.retryCount || 0;
+  config[namespace] = currentState;
+  return currentState;
+}
+/**
+ * Returns the axios-retry options for the current request
+ * @param  {AxiosRequestConfig} config
+ * @param  {AxiosRetryConfig} defaultOptions
+ * @return {AxiosRetryConfig}
+ */
+
+
+function getRequestOptions(config, defaultOptions) {
+  return _objectSpread(_objectSpread({}, defaultOptions), config[namespace]);
+}
+/**
+ * @param  {Axios} axios
+ * @param  {AxiosRequestConfig} config
+ */
+
+
+function fixConfig(axios, config) {
+  if (axios.defaults.agent === config.agent) {
+    delete config.agent;
+  }
+
+  if (axios.defaults.httpAgent === config.httpAgent) {
+    delete config.httpAgent;
+  }
+
+  if (axios.defaults.httpsAgent === config.httpsAgent) {
+    delete config.httpsAgent;
+  }
+}
+/**
+ * Checks retryCondition if request can be retried. Handles it's retruning value or Promise.
+ * @param  {number} retries
+ * @param  {Function} retryCondition
+ * @param  {Object} currentState
+ * @param  {Error} error
+ * @return {boolean}
+ */
+
+
+function shouldRetry(_x, _x2, _x3, _x4) {
+  return _shouldRetry.apply(this, arguments);
+}
+/**
+ * Adds response interceptors to an axios instance to retry requests failed due to network issues
+ *
+ * @example
+ *
+ * import axios from 'axios';
+ *
+ * axiosRetry(axios, { retries: 3 });
+ *
+ * axios.get('http://example.com/test') // The first request fails and the second returns 'ok'
+ *   .then(result => {
+ *     result.data; // 'ok'
+ *   });
+ *
+ * // Exponential back-off retry delay between requests
+ * axiosRetry(axios, { retryDelay : axiosRetry.exponentialDelay});
+ *
+ * // Custom retry delay
+ * axiosRetry(axios, { retryDelay : (retryCount) => {
+ *   return retryCount * 1000;
+ * }});
+ *
+ * // Also works with custom axios instances
+ * const client = axios.create({ baseURL: 'http://example.com' });
+ * axiosRetry(client, { retries: 3 });
+ *
+ * client.get('/test') // The first request fails and the second returns 'ok'
+ *   .then(result => {
+ *     result.data; // 'ok'
+ *   });
+ *
+ * // Allows request-specific configuration
+ * client
+ *   .get('/test', {
+ *     'axios-retry': {
+ *       retries: 0
+ *     }
+ *   })
+ *   .catch(error => { // The first request fails
+ *     error !== undefined
+ *   });
+ *
+ * @param {Axios} axios An axios instance (the axios object or one created from axios.create)
+ * @param {Object} [defaultOptions]
+ * @param {number} [defaultOptions.retries=3] Number of retries
+ * @param {boolean} [defaultOptions.shouldResetTimeout=false]
+ *        Defines if the timeout should be reset between retries
+ * @param {Function} [defaultOptions.retryCondition=isNetworkOrIdempotentRequestError]
+ *        A function to determine if the error can be retried
+ * @param {Function} [defaultOptions.retryDelay=noDelay]
+ *        A function to determine the delay between retry requests
+ */
+
+
+function _shouldRetry() {
+  _shouldRetry = _asyncToGenerator(function* (retries, retryCondition, currentState, error) {
+    var shouldRetryOrPromise = currentState.retryCount < retries && retryCondition(error); // This could be a promise
+
+    if (typeof shouldRetryOrPromise === 'object') {
+      try {
+        yield shouldRetryOrPromise;
+        return true;
+      } catch (_err) {
+        return false;
+      }
+    }
+
+    return shouldRetryOrPromise;
+  });
+  return _shouldRetry.apply(this, arguments);
+}
+
+function axiosRetry(axios, defaultOptions) {
+  axios.interceptors.request.use(config => {
+    var currentState = getCurrentState(config);
+    currentState.lastRequestTime = Date.now();
+    return config;
+  });
+  axios.interceptors.response.use(null, /*#__PURE__*/function () {
+    var _ref = _asyncToGenerator(function* (error) {
+      var {
+        config
+      } = error; // If we have no information to retry the request
+
+      if (!config) {
+        return Promise.reject(error);
+      }
+
+      var {
+        retries = 3,
+        retryCondition = isNetworkOrIdempotentRequestError,
+        retryDelay = noDelay,
+        shouldResetTimeout = false
+      } = getRequestOptions(config, defaultOptions);
+      var currentState = getCurrentState(config);
+
+      if (yield shouldRetry(retries, retryCondition, currentState, error)) {
+        currentState.retryCount += 1;
+        var delay = retryDelay(currentState.retryCount, error); // Axios fails merging this configuration to the default configuration because it has an issue
+        // with circular structures: https://github.com/mzabriskie/axios/issues/370
+
+        fixConfig(axios, config);
+
+        if (!shouldResetTimeout && config.timeout && currentState.lastRequestTime) {
+          var lastRequestDuration = Date.now() - currentState.lastRequestTime; // Minimum 1ms timeout (passing 0 or less to XHR means no timeout)
+
+          config.timeout = Math.max(config.timeout - lastRequestDuration - delay, 1);
+        }
+
+        config.transformRequest = [data => data];
+        return new Promise(resolve => setTimeout(() => resolve(axios(config)), delay));
+      }
+
+      return Promise.reject(error);
+    });
+
+    return function (_x5) {
+      return _ref.apply(this, arguments);
+    };
+  }());
+} // Compatibility with CommonJS
+
+axiosRetry.isNetworkError = isNetworkError;
+axiosRetry.isSafeRequestError = isSafeRequestError;
+axiosRetry.isIdempotentRequestError = isIdempotentRequestError;
+axiosRetry.isNetworkOrIdempotentRequestError = isNetworkOrIdempotentRequestError;
+axiosRetry.exponentialDelay = exponentialDelay;
+axiosRetry.isRetryableError = isRetryableError;
+//# sourceMappingURL=index.js.map
+;// CONCATENATED MODULE: ./index.js
 
 
 
 
-(0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.startGroup)("Preparing CircleCI Pipeline Trigger");
-const payload = _actions_github__WEBPACK_IMPORTED_MODULE_1__.context.payload;
+
+axiosRetry((axios_default()), { retries: 3 });
+
+(0,core.startGroup)("Preparing CircleCI Pipeline Trigger");
+const payload = github.context.payload;
 const pattern = /github\.com\/(repos\/)?(.*)\/(.*)$/gm;
 const [, , repoOrg, repoName] = pattern.exec(payload.repository.url);
-(0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.info)(`URL: ${payload.repository.url}`);
-(0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.info)(`Org: ${repoOrg}`);
-(0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.info)(`Repo: ${repoName}`);
-const ref = process.env.GHA_Branch || _actions_github__WEBPACK_IMPORTED_MODULE_1__.context.ref;
+(0,core.info)(`URL: ${payload.repository.url}`);
+(0,core.info)(`Org: ${repoOrg}`);
+(0,core.info)(`Repo: ${repoName}`);
+const ref = process.env.GHA_Branch || github.context.ref;
 
 const getBranch = () => {
   if (ref.startsWith("refs/heads/")) {
@@ -12755,17 +13082,17 @@ const getTag = () => {
 
 const headers = {
   "content-type": "application/json",
-  "x-attribution-login": _actions_github__WEBPACK_IMPORTED_MODULE_1__.context.actor,
-  "x-attribution-actor-id": _actions_github__WEBPACK_IMPORTED_MODULE_1__.context.actor,
+  "x-attribution-login": github.context.actor,
+  "x-attribution-actor-id": github.context.actor,
   "Circle-Token": `${process.env.CCI_TOKEN}`,
 };
 const parameters = {
-  GHA_Actor: _actions_github__WEBPACK_IMPORTED_MODULE_1__.context.actor,
-  GHA_Action: _actions_github__WEBPACK_IMPORTED_MODULE_1__.context.action,
-  GHA_Event: _actions_github__WEBPACK_IMPORTED_MODULE_1__.context.eventName,
+  GHA_Actor: github.context.actor,
+  GHA_Action: github.context.action,
+  GHA_Event: github.context.eventName,
 };
 
-const metaData = (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput)("GHA_Meta");
+const metaData = (0,core.getInput)("GHA_Meta");
 if (metaData.length > 0) {
   Object.assign(parameters, { GHA_Meta: metaData });
 }
@@ -12785,27 +13112,27 @@ if (tag) {
 
 const url = `https://circleci.com/api/v2/project/gh/${repoOrg}/${repoName}/pipeline`;
 
-(0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.info)(`Triggering CircleCI Pipeline for ${repoOrg}/${repoName}`);
-(0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.info)(`Triggering URL: ${url}`);
+(0,core.info)(`Triggering CircleCI Pipeline for ${repoOrg}/${repoName}`);
+(0,core.info)(`Triggering URL: ${url}`);
 if (tag) {
-  (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.info)(`Triggering tag: ${tag}`);
+  (0,core.info)(`Triggering tag: ${tag}`);
 } else {
-  (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.info)(`Triggering branch: ${branch}`);
+  (0,core.info)(`Triggering branch: ${branch}`);
 }
-(0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.info)(`Parameters:\n${JSON.stringify(parameters)}`);
-(0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.endGroup)();
+(0,core.info)(`Parameters:\n${JSON.stringify(parameters)}`);
+(0,core.endGroup)();
 
-axios__WEBPACK_IMPORTED_MODULE_2___default().post(url, body, { headers: headers })
+axios_default().post(url, body, { headers: headers })
   .then((response) => {
-    (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.startGroup)("Successfully triggered CircleCI Pipeline");
-    (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.info)(`CircleCI API Response: ${JSON.stringify(response.data)}`);
-    (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.endGroup)();
+    (0,core.startGroup)("Successfully triggered CircleCI Pipeline");
+    (0,core.info)(`CircleCI API Response: ${JSON.stringify(response.data)}`);
+    (0,core.endGroup)();
   })
   .catch((error) => {
-    (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.startGroup)("Failed to trigger CircleCI Pipeline");
-    (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.error)(error);
-    (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.setFailed)(error.message);
-    (0,_actions_core__WEBPACK_IMPORTED_MODULE_0__.endGroup)();
+    (0,core.startGroup)("Failed to trigger CircleCI Pipeline");
+    (0,core.error)(error);
+    (0,core.setFailed)(error.message);
+    (0,core.endGroup)();
   });
 
 })();
